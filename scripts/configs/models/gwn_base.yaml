@@ -1,0 +1,37 @@
+# Graph WaveNet — canonical base configuration (tsl GraphWaveNetModel)
+# Reference: Wu et al., "Graph WaveNet for Deep Spatial-Temporal Graph Modeling", IJCAI 2019
+# Implementation: tsl.nn.models.stgn.GraphWaveNetModel
+# Official code (training recipe below matches exactly): https://github.com/nnzhan/Graph-WaveNet
+
+architecture:
+  hidden_size: 32
+  ff_size: 256
+  n_layers: 8
+  temporal_kernel_size: 2
+  spatial_kernel_size: 2
+  learned_adjacency: true   # adds the dense learned-adjacency branch alongside the static graph
+  emb_size: 10
+  dilation: 2
+  dilation_mod: 2
+  norm: batch
+  dropout: 0.3
+  # in_dim, n_nodes, and horizon are set at runtime from the experiment config
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      scheduler: none   # original repo (nnzhan/Graph-WaveNet) has no scheduler at all
+      patience: 100     # original has no early stopping — trains all 100 epochs,
+                         # picks the best checkpoint by val loss afterward
+
+  PEMS-BAY:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      scheduler: none   # original repo (nnzhan/Graph-WaveNet) has no scheduler at all
+      patience: 100     # original has no early stopping — trains all 100 epochs,
+                         # picks the best checkpoint by val loss afterward

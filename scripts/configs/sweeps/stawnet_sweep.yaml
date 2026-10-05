@@ -1,0 +1,37 @@
+# W&B Bayesian sweep for STAWnet
+# Usage:
+#   python scripts/run_sweep.py \
+#     --config scripts/configs/metr_la_training.yaml \
+#     --sweep  scripts/configs/sweeps/stawnet_sweep.yaml \
+#     --model  stawnet --horizon 12 --count 30
+
+program: scripts/run_sweep.py
+method: bayes
+metric:
+  name: val/MAE
+  goal: minimize
+
+parameters:
+  # Training hyperparameters
+  lr:
+    distribution: log_uniform_values
+    min: 0.0001
+    max: 0.01
+  weight_decay:
+    distribution: log_uniform_values
+    min: 0.00001
+    max: 0.001
+  dropout:
+    values: [0.1, 0.2, 0.3, 0.4]
+
+  # Architecture hyperparameters
+  emb_length:
+    values: [8, 16, 32]       # node embedding dimension for attention
+  residual_channels:
+    values: [32, 64]
+  dilation_channels:
+    values: [32, 64]
+  skip_channels:
+    values: [128, 256, 512]
+  end_channels:
+    values: [256, 512]

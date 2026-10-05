@@ -1,0 +1,47 @@
+# TCN — canonical configuration for the temporal baseline.
+# `tcn` trains one independent model per sensor and does not use a graph or
+# consume another sensor's observations.
+#
+# num_inputs: 3 — multivariate (value + time-of-day + day-of-week). With no
+# graph to borrow spatial cues from, direct temporal-context channels are
+# the cheapest way to give each node's model more signal.
+#
+# hidden_size/ff_size remain at 16 for a controlled same-backbone comparison.
+# kernel_size/n_layers/n_convs_layer/dilation are left untouched —
+# they set the receptive field (~13 steps for these values), which already
+# just covers in_len: 12; reducing depth would under-cover the input window,
+# and increasing it further has nothing more to look at within the window.
+architecture:
+  num_inputs: 3
+  hidden_size: 16
+  ff_size: 16
+  kernel_size: 2
+  n_layers: 4
+  n_convs_layer: 2
+  dilation: 2
+  gated: true
+  resnet: true
+  norm: batch
+  dropout: 0.2
+  # out_dim/horizon is set at runtime from the experiment horizon
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      scheduler: plateau
+      scheduler_kwargs:
+        patience: 10
+        factor: 0.3
+
+  PEMS-BAY:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      scheduler: plateau
+      scheduler_kwargs:
+        patience: 10
+        factor: 0.3

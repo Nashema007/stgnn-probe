@@ -1,0 +1,44 @@
+# One-off smoke-test config for verifying the D2STGNN / BigST integration
+# end-to-end (forward+backward pass, checkpointing, prediction/adjacency
+# export, probe ingestion) at low cost — NOT for production results.
+# Horizon restricted to 6 and epochs cut to 3 via model_overrides below.
+#
+# Usage:
+#   docker run --rm -v "$(pwd)":/app -w /app stgnn-tsl-dev \
+#     python scripts/run_training.py --config scripts/configs/metr_la_smoke_new_models.yaml
+
+dataset_name: METR-LA
+num_nodes: 207
+horizons: [6]
+num_runs: 1
+output_dir: outputs/metr_la_smoke/
+ground_truth_path: data/probe_inputs/metr_la_smoke/ground_truth.npy
+predictions_dir: data/probe_inputs/metr_la_smoke/predictions/
+adjacency_dir: data/probe_inputs/metr_la_smoke/adjacency/
+probe_config_path: scripts/configs/metr_la_smoke_probe.yaml
+
+in_len: 12
+in_dim: 3
+batch_size: 64
+device: auto
+epochs: 3
+patience: 15
+checkpoint_dir: checkpoints/metr_la_smoke/
+null_val: 0.0
+
+spatial_models:
+  - d2stgnn
+  - bigst
+
+# Every neural model the orchestrator trains needs an entry here: the top-level
+# `epochs: 3` is only a fallback, and each model's <model>_base.yaml
+# datasets.METR-LA.training section sets epochs: 100, which wins over it. A
+# model added to the run list without an override here silently trains for 100
+# epochs and defeats the point of this config.
+model_overrides:
+  tcn:
+    epochs: 3
+  d2stgnn:
+    epochs: 3
+  bigst:
+    epochs: 3

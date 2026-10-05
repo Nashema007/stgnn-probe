@@ -1,0 +1,43 @@
+dataset_name: METR-LA
+num_nodes: 207
+# horizons: [6, 12, 18, 24, 30, 36, 42]
+horizons: [6, 12, 42]
+num_runs: 3
+output_dir: outputs/metr_la/
+ground_truth_path: data/probe_inputs/metr_la/ground_truth.npy
+predictions_dir: data/probe_inputs/metr_la/predictions/
+adjacency_dir: data/probe_inputs/metr_la/adjacency/
+probe_config_path: scripts/configs/metr_la_probe.yaml
+
+# Shared trainer settings (per-model training params in model_overrides take precedence)
+# Data and graph are sourced from tsl.datasets.MetrLA (auto-downloaded; see data/tsl_pipeline.py)
+in_len: 12
+in_dim: 3
+batch_size: 64
+# Temporal split: test is the last 20%; val is 12.5% of the remaining 80%
+# (= 10% of the series); train is the rest. Yields an exact 70/10/20.
+val_len: 0.125
+test_len: 0.2
+device: auto
+epochs: 100
+patience: 15
+checkpoint_dir: checkpoints/metr_la/
+null_val: 0.0
+use_wandb: true
+
+spatial_models:
+  - gwn
+  - gwn_v2
+  - stawnet
+  - staeformer
+  - d2stgnn
+  - bigst
+  - dssa_tcn
+
+# Model architecture and training hyperparameters are loaded from:
+#   scripts/configs/models/<model>_base.yaml  (datasets.METR-LA section)
+# Use model_overrides here only for one-off changes on top of those files,
+# e.g. during a sweep run.
+# model_overrides:
+#   gwn:
+#     dropout: 0.5

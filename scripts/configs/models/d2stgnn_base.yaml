@@ -1,0 +1,38 @@
+# D2STGNN — canonical base configuration
+# Reference: Shao et al., "Decoupled Dynamic Spatial-Temporal Graph Neural Network
+#            for Traffic Forecasting", VLDB 2022
+# Code:      new_models/D2STGNN/ (ported to src/models/d2stgnn/)
+
+architecture:
+  num_hidden: 32
+  node_hidden: 10
+  time_emb_dim: 10
+  dropout: 0.1
+  k_t: 3
+  k_s: 2
+  gap: 3                  # sub-horizon block size; horizon must be divisible by this
+  adj_type: doubletransition
+  # num_feat, num_nodes, seq_length (=horizon), in_seq_length set at runtime
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.002
+      weight_decay: 1.0e-5
+      epochs: 80
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [1, 30, 38, 46, 54, 62, 70, 80]
+        gamma: 0.5
+      patience: 100  # matches official configs/METR-LA.yaml's CFG.TRAIN.EARLY_STOPPING_PATIENCE
+
+  PEMS-BAY:
+    training:
+      lr: 0.002
+      weight_decay: 1.0e-5
+      epochs: 80
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [1, 30, 38, 46, 54, 62, 70, 80]
+        gamma: 0.5
+      patience: 100  # matches official configs/METR-LA.yaml's CFG.TRAIN.EARLY_STOPPING_PATIENCE

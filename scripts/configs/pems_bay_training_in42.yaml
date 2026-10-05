@@ -1,0 +1,73 @@
+# ============================================================================
+# LONG-INPUT SENSITIVITY ARM — PEMS-BAY, in_len = 42 (210 min of history)
+# ============================================================================
+# See scripts/configs/metr_la_training_in42.yaml for the full rationale. This
+# arm re-runs the same models/horizons with in_len=42 to test whether the
+# long-horizon convergence toward the temporal baseline persists when models
+# receive substantially more temporal context. It does NOT replace the main
+# in_len=12 benchmark (pems_bay_training.yaml); all artifacts write to *_in42/.
+#
+# RECEPTIVE-FIELD (dilation) CHANGE — reported alongside this arm's results.
+# Every dilated-conv model (TCN, GWN, GWN v2, STAWnet, DSSA-TCN) is deepened so
+# its temporal receptive field spans the full 42-step window (RF = 43, dilation
+# cycle [1,2,4]); otherwise its last-step prediction would depend on only the
+# final ~13 inputs and this would not fairly test the long-input hypothesis.
+# Attention/explicit-window models (STAEformer, BigST, D2STGNN) consume
+# the whole window natively and are left at their published configs.
+# ============================================================================
+
+dataset_name: PEMS-BAY
+num_nodes: 325
+# Sensitivity arm targets the single critical cell: 42-step input
+# (210 min) -> 42-step horizon (210 min). See metr_la_training_in42.yaml.
+horizons: [42]
+num_runs: 3
+
+# Isolated artifact paths (do NOT share with the in_len=12 main arm)
+output_dir: outputs/pems_bay_in42/
+ground_truth_path: data/probe_inputs/pems_bay_in42/ground_truth.npy
+predictions_dir: data/probe_inputs/pems_bay_in42/predictions/
+adjacency_dir: data/probe_inputs/pems_bay_in42/adjacency/
+checkpoint_dir: checkpoints/pems_bay_in42/
+probe_config_path: scripts/configs/pems_bay_probe.yaml
+
+in_len: 42
+in_dim: 3
+batch_size: 64
+val_len: 0.125
+test_len: 0.2
+device: auto
+epochs: 100
+patience: 15
+null_val: 0.0
+use_wandb: true
+
+spatial_models:
+  - gwn
+  - gwn_v2
+  - stawnet
+  - staeformer
+  - d2stgnn
+  - bigst
+  - dssa_tcn
+
+# Receptive-field bumps so every dilated-conv model spans the 42-step window.
+# Applied on top of scripts/configs/models/<model>_base.yaml (highest precedence).
+model_overrides:
+  tcn:
+    n_layers: 6
+    n_convs_layer: 3
+    dilation: 2
+  gwn:
+    n_layers: 18
+    dilation_mod: 3
+    dilation: 2
+  gwn_v2:
+    blocks: 6
+    layers: 3
+  stawnet:
+    blocks: 6
+    layers: 3
+  dssa_tcn:
+    blocks: 6
+    layers: 3

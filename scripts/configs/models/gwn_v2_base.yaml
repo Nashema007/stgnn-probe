@@ -1,0 +1,42 @@
+# Graph WaveNet v2 — canonical base configuration
+# Reference: Shleifer et al., "Incrementally Improving Graph WaveNet Performance on Traffic
+#            Prediction", arXiv 2019
+# Code:      https://github.com/sshleifer/Graph-WaveNet
+
+architecture:
+  residual_channels: 32
+  dilation_channels: 32
+  skip_channels: 256
+  end_channels: 512
+  kernel_size: 2
+  blocks: 4
+  layers: 2
+  dropout: 0.3
+  do_graph_conv: true
+  addaptadj: true
+  cat_feat_gc: false  # set true to concatenate raw features into GC branch
+  apt_size: 10        # adaptive adjacency embedding dimension
+  # in_dim and out_dim are set at runtime from the experiment config
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      grad_clip: 3.0      # original repo's engine.py clip (this framework's other models use 5)
+      scheduler: exponential
+      scheduler_kwargs:
+        decay_rate: 0.97  # train.py's LambdaLR(lr_lambda=lambda epoch: lr_decay_rate**epoch)
+      patience: 20        # original train.py's es_patience
+
+  PEMS-BAY:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      grad_clip: 3.0      # original repo's engine.py clip (this framework's other models use 5)
+      scheduler: exponential
+      scheduler_kwargs:
+        decay_rate: 0.97  # train.py's LambdaLR(lr_lambda=lambda epoch: lr_decay_rate**epoch)
+      patience: 20        # original train.py's es_patience

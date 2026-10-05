@@ -1,0 +1,41 @@
+# W&B Bayesian sweep for DSSA-TCN
+# Usage:
+#   python scripts/run_sweep.py \
+#     --config scripts/configs/metr_la_training.yaml \
+#     --sweep  scripts/configs/sweeps/dssa_tcn_sweep.yaml \
+#     --model  dssa_tcn --horizon 12 --count 30
+
+program: scripts/run_sweep.py
+method: bayes
+metric:
+  name: val/MAE
+  goal: minimize
+
+parameters:
+  # Training hyperparameters
+  lr:
+    distribution: log_uniform_values
+    min: 0.0005
+    max: 0.005
+  weight_decay:
+    distribution: log_uniform_values
+    min: 0.0001
+    max: 0.001
+  dropout:
+    values: [0.1, 0.2, 0.3]
+
+  # Architecture hyperparameters
+  adaptive_embedding_dim:
+    values: [8, 12, 24]
+  residual_channels:
+    values: [32, 64]
+  dilation_channels:
+    values: [32, 64]
+  feed_forward_dim:
+    values: [64, 128, 256]
+  num_heads:
+    values: [2, 4, 8]
+  num_layers:
+    values: [1, 2]            # SSA layers per TCN block
+  use_topk:
+    values: [true, false]

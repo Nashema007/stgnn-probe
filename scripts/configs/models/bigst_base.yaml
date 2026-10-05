@@ -1,0 +1,52 @@
+# BigST — canonical base configuration
+# Reference: Han et al., "BigST: Linear Complexity Spatio-Temporal Graph Neural
+#            Network for Traffic Forecasting on Large-Scale Road Networks", VLDB 2024
+# Code:      new_models/BigST/ (ported to src/models/bigst.py)
+#
+# lr/weight_decay/epochs/grad_clip/scheduler+milestones below match the official
+# run.py/trainer.py argparse defaults exactly (the paper's own benchmarks target
+# large-scale CA/SD/GBA/GLA networks, not METR-LA/PEMS-BAY, but these training-loop
+# settings are dataset-independent). patience: 100 disables early stopping — the
+# original has no early-stopping mechanism at all, training the full run every time.
+
+architecture:
+  hid_dim: 32
+  node_dim: 32        # must equal hid_dim and time_dim (see src/models/bigst.py)
+  time_dim: 32
+  num_layers: 3
+  random_feature_dim: 64
+  tau: 1.0
+  dropout: 0.3
+  use_residual: true
+  use_bn: true
+  # use_spatial is forced false at integration time — the trainer has no
+  # auxiliary-loss hook to consume BigST's optional spatial regulariser yet.
+  use_long: false     # when true, run_training auto-generates the feature file if missing
+  long_feat_dim: 32   # must match preprocess nhid; defaults to hid_dim if omitted
+  adj_type: doubletransition
+  # num_nodes, in_dim, input_length, output_length set at runtime
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.001
+      weight_decay: 1.0e-4
+      epochs: 100
+      grad_clip: 5.0
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [80, 100]
+        gamma: 0.1
+      patience: 100
+
+  PEMS-BAY:
+    training:
+      lr: 0.001
+      weight_decay: 1.0e-4
+      epochs: 100
+      grad_clip: 5.0
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [80, 100]
+        gamma: 0.1
+      patience: 100

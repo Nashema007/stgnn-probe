@@ -1,0 +1,23 @@
+# ARIMA — canonical base configuration (temporal baseline)
+# Univariate: one RollingARIMA model is fitted independently per node on the
+# z-scored speed channel. No graph structure or cross-node information is used.
+# ARIMA is deterministic — there are no random seeds and no gradient-based training.
+
+architecture:
+  order: [3, 0, 1]    # (p, d, q): AR order, differencing, MA order
+                       # p=3 captures ~15-min autocorrelation at 5-min resolution
+                       # d=0 traffic speed is stationary after z-scoring
+                       # q=1 single MA lag is standard for short-term traffic
+  rolling_step: 10    # stride between consecutive rolling-forecast origins (timesteps)
+                       # smaller = more forecast windows, slower; 10 is a practical default
+
+datasets:
+  METR-LA:
+    training:
+      val_ratio: 0.1
+      test_ratio: 0.2
+
+  PEMS-BAY:
+    training:
+      val_ratio: 0.1
+      test_ratio: 0.2

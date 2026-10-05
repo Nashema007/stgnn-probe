@@ -1,0 +1,41 @@
+# STAEformer — canonical base configuration
+# Reference: Liu et al., "Spatio-Temporal Adaptive Embedding Makes Plain Transformer
+#            Competitive for Urban Traffic Forecasting", CIKM 2023
+# Code:      https://github.com/XDZhelheim/STAEformer
+
+architecture:
+  input_dim: 3                  # value + time-of-day + day-of-week channels
+  output_dim: 1
+  input_embedding_dim: 24
+  tod_embedding_dim: 24
+  dow_embedding_dim: 24
+  spatial_embedding_dim: 0      # static positional embedding (disabled by default)
+  adaptive_embedding_dim: 80    # learnable adaptive node-time embedding
+  feed_forward_dim: 256
+  num_heads: 4
+  num_layers: 3
+  dropout: 0.1
+  use_mixed_proj: true          # fuse all timesteps in one linear projection
+  steps_per_day: 288            # 5-minute intervals: 288 steps per day
+  # num_nodes, in_steps, out_steps set at runtime
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.001
+      weight_decay: 0.0         # paper uses no weight decay
+      epochs: 200               # requires more epochs than GWN-family
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [1, 50]
+        gamma: 0.5
+
+  PEMS-BAY:
+    training:
+      lr: 0.001
+      weight_decay: 0.0
+      epochs: 200
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [1, 50]
+        gamma: 0.5

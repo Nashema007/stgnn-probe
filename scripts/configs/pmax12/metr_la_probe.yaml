@@ -1,0 +1,76 @@
+# METR-LA probe config — p_max = 12 variant.
+# Identical to scripts/configs/metr_la_probe.yaml except the Granger lag bound is
+# matched to the 12-step (60-minute) input window the forecasting models receive,
+# rather than the 210-minute forecast horizon. Kept in a separate folder so the
+# p_max=42 config and outputs are preserved.
+#
+# Run into a SEPARATE output folder so the p_max=42 granger_cache/results are not
+# overwritten (the Granger cache is keyed by dataset name only, not by max_lag):
+#   python run_probe.py --config scripts/configs/pmax12/metr_la_probe.yaml \
+#                       --all --output-dir outputs_pmax12 --force-granger
+
+datasets:
+  - name: METR-LA
+    num_nodes: 207
+    raw_data: data/probe_inputs/metr_la/metr_la_raw.npy
+    coordinates: data/probe_inputs/metr_la/metr_la_coords.csv
+    ground_truth: data/probe_inputs/metr_la/ground_truth.npy
+    predictions_dir: data/probe_inputs/metr_la/predictions
+    adjacency_dir: data/probe_inputs/metr_la/adjacency
+    # horizons: [6, 12, 18, 24, 30, 36, 42]
+    horizons: [6, 12, 42]
+    # horizon_minutes: [30, 60, 90, 120, 150, 180, 210]
+    horizon_minutes: [30, 60, 210]
+
+models:
+  temporal_baselines: [arima, tcn]
+  spatial_models: [gwn, gwn_v2, stawnet, staeformer, dssa_tcn, d2stgnn, bigst]
+
+granger:
+  max_lag: 12               # matched to the 12-step / 60-minute model input window (was 42)
+  significance: 0.05
+  lag_selection: AIC
+  # GCG keeps each node's top-k strongest incoming causal edges by F-statistic
+  # (density = k/(N-1) ~= 5% at k=10, N=207). Effect-size sparsification —
+  # p-value significance is non-discriminative here. NOTE: changing max_lag DOES
+  # require recomputing the Granger F-stats (use --force-granger, or a fresh
+  # --output-dir as above); only gcg_top_k is re-derived from cached F-stats.
+  gcg_top_k: 10
+  # -1 (all cores) oversubscribed RAM: each forked worker holds 2-3GB
+  # resident (torch/numpy/statsmodels), so all-cores on this box pushed
+  # combined RES past 128GB RAM and swap filled, grinding to a crawl.
+  n_jobs: 16
+
+community:
+  algorithm: louvain
+  num_runs: 10
+  resolution: 1.0
+  random_seed: 0
+
+alignment:
+  threshold: 0.1
+  sweep_min: 0.0
+  sweep_max: 1.0
+  sweep_steps: 21
+
+sgs_threshold: 0.1        # absolute-SGS reference (target units); reporting only
+sgs_rel_threshold: 0.01   # relative-SGS threshold for node labels (1% of TCN MAE, scale-free)
+
+performance:
+  primary_metric: mae
+  horizon_groups:
+    short_range: [30]
+    boundary: [60]
+    # long_range: [90, 120, 150, 180, 210]
+    long_range: [210]
+  baselines:
+    statistical: arima
+    temporal: tcn
+  model_groups:
+    statistical_baseline: [arima]
+    temporal_baseline: [tcn]
+    graph_wavenet_based: [gwn, gwn_v2]
+    attention_adaptive_stgnn: [stawnet, dssa_tcn, staeformer]
+    decoupled_stgnn: [d2stgnn]
+    linear_complexity_stgnn: [bigst]
+  ranking_lower_is_better: true

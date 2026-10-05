@@ -1,0 +1,44 @@
+# STAWnet — canonical base configuration
+# Reference: Tan et al., "Spatial-Temporal Adaptive Graph Convolutional Networks for Traffic
+#            Flow Forecasting", IET Intelligent Transport Systems, 2021
+# Code:      https://github.com/CYBruce/STAWnet
+
+architecture:
+  residual_channels: 32
+  dilation_channels: 32
+  skip_channels: 256
+  end_channels: 512
+  kernel_size: 2
+  blocks: 4
+  layers: 2
+  dropout: 0.3
+  emb_length: 16              # node embedding dimension for attention keys/queries
+  graph_attention: true
+  adaptive_adjacency_matrix: true
+  use_node_embedding_only: false
+  use_node_embedding: false
+  # in_dim and out_dim are set at runtime from the experiment config
+
+# scheduler: none + patience >= epochs reproduce the original train.py/
+# engine.py exactly: constant lr for the full 100-epoch run, no early
+# stopping. The shared GWN-style defaults (ReduceLROnPlateau + patience=15
+# from the experiment config) were never validated against this
+# architecture and were silently cutting STAWnet's lr and halting training
+# well before 100 epochs — see git history for the perf regression this
+# caused (worse than even the graph-free TCN baseline).
+datasets:
+  METR-LA:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      scheduler: none
+      patience: 100
+
+  PEMS-BAY:
+    training:
+      lr: 0.001
+      weight_decay: 0.0001
+      epochs: 100
+      scheduler: none
+      patience: 100

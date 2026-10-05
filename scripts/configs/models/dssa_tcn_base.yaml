@@ -1,0 +1,53 @@
+# DSSA-TCN — canonical base configuration
+# Reference: Ni et al., "DSSA-TCN: Exploiting Adaptive Sparse Attention and Diffusion
+#            Graph Convolutions in Temporal Convolutional Networks for Traffic Flow
+#            Forecasting", PLOS ONE, 2025
+# Code:      https://github.com/Moleskewers/DSSA-TCN
+
+architecture:
+  input_dim: 3                  # value + time-of-day + day-of-week (required)
+  output_dim: 1
+  input_embedding_dim: 12
+  tod_embedding_dim: 12
+  dow_embedding_dim: 12
+  spatial_embedding_dim: 0
+  adaptive_embedding_dim: 12
+  residual_channels: 32
+  dilation_channels: 32
+  skip_channels: 256
+  end_channels: 512
+  kernel_size: 2
+  blocks: 4
+  layers: 2
+  feed_forward_dim: 128
+  num_heads: 4
+  num_layers: 1                 # SSA layers per TCN block
+  mask: false
+  use_topk: true                # adaptive sparse top-k attention
+  topk_ratio_range: [0.1667, 0.3333]
+  gcn_order: 2
+  steps_per_day: 288
+  # num_nodes, out_dim, adjs set at runtime
+
+datasets:
+  METR-LA:
+    training:
+      lr: 0.002
+      weight_decay: 0.0003
+      epochs: 100
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [50, 70, 100]
+        gamma: 0.1
+      patience: 100  # original BasicTS-based config has no early-stopping mechanism at all
+
+  PEMS-BAY:
+    training:
+      lr: 0.002
+      weight_decay: 0.0003
+      epochs: 100
+      scheduler: multistep
+      scheduler_kwargs:
+        milestones: [50, 70, 100]
+        gamma: 0.1
+      patience: 100  # original BasicTS-based config has no early-stopping mechanism at all

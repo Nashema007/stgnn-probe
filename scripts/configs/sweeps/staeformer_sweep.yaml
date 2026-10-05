@@ -1,0 +1,35 @@
+# W&B Bayesian sweep for STAEformer
+# Usage:
+#   python scripts/run_sweep.py \
+#     --config scripts/configs/metr_la_training.yaml \
+#     --sweep  scripts/configs/sweeps/staeformer_sweep.yaml \
+#     --model  staeformer --horizon 12 --count 30
+
+program: scripts/run_sweep.py
+method: bayes
+metric:
+  name: val/MAE
+  goal: minimize
+
+parameters:
+  # Training hyperparameters
+  lr:
+    distribution: log_uniform_values
+    min: 0.0001
+    max: 0.01
+  weight_decay:
+    values: [0.0, 0.00001, 0.0001]  # paper uses 0; small wd can help
+  dropout:
+    values: [0.0, 0.05, 0.1, 0.2]
+
+  # Architecture hyperparameters
+  num_heads:
+    values: [2, 4, 8]
+  num_layers:
+    values: [2, 3, 4]
+  adaptive_embedding_dim:
+    values: [40, 80, 160]
+  feed_forward_dim:
+    values: [128, 256, 512]
+  input_embedding_dim:
+    values: [16, 24, 32]
