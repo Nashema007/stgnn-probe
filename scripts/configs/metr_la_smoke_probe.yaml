@@ -22,7 +22,6 @@ models:
 granger:
   max_lag: 6
   significance: 0.05
-  lag_selection: AIC
   # -1 (all cores) oversubscribed RAM on the training box (120 cores x
   # 2-3GB/worker >> available RAM, filled swap). Capped for the same
   # reason as metr_la_probe.yaml / pems_bay_probe.yaml.

@@ -1,7 +1,40 @@
 # STGNN Framework
 
 A clean PyTorch-based framework for training and analysing multiple spatio-temporal graph
-neural network (STGNN) models on traffic forecasting benchmarks.
+neural network (STGNN) models on traffic forecasting benchmarks. It accompanies the paper
+*Analysing Spatio-Temporal Graph Neural Networks for Long-Horizon Traffic Forecasting*.
+
+## Reproducing the paper
+
+The shipped configs are the paper's configuration. The settings that define the experiments are:
+
+| Setting | Value | Where it is set |
+|---|---|---|
+| Datasets | METR-LA (207 sensors), PEMS-BAY (325 sensors), loaded through `tsl` | `scripts/configs/<dataset>_training.yaml` |
+| Missing readings | METR-LA's zero-coded readings (~8%) are forward-filled by `tsl`; the same series is used for training, evaluation and the Granger reference | `tsl.datasets.MetrLA` default |
+| Input window | 12 steps (60 min), features `[speed, time of day, day of week]` | `in_len: 12` |
+| Forecast horizons | 6, 12 and 42 steps (30, 60 and 210 min); one model per horizon, evaluated at the final step | `horizons: [6, 12, 42]` |
+| Runs | 3 seeds per model and horizon | `num_runs: 3` |
+| Split | chronological 70/10/20, Z-score fitted on the training split | `val_len: 0.125`, `test_len: 0.2` |
+| Models | GWN, GWN v2, STAWnet, DSSA-TCN, STAEformer, D2STGNN, BigST; per-sensor TCN and ARIMA baselines | `spatial_models`; `scripts/configs/models/*_base.yaml` |
+| SGS | relative gain over the per-sensor TCN; sensor classes use a 1% threshold | `sgs_rel_threshold: 0.01` |
+| Granger reference | pairwise F-test at a **fixed lag p = 12** for every pair, fitted on the full series; top `k = 10` incoming sources per sensor | `granger.max_lag: 12`, `granger.gcg_top_k: 10` |
+| AAS | overlap of each model's top-10 incoming edges with the reference, averaged over 3 horizons x 3 seeds; exactly uniform matrices are scored at the chance level `k/(N-1)` | `scripts/finalize_paper_figures.py` |
+
+```bash
+python scripts/run_training.py --config scripts/configs/metr_la_training.yaml
+python scripts/run_training.py --config scripts/configs/pems_bay_training.yaml
+python run_probe.py --config scripts/configs/metr_la_probe.yaml --all --force-granger
+python run_probe.py --config scripts/configs/pems_bay_probe.yaml --all --force-granger
+python scripts/finalize_paper_figures.py --aas-source outputs --no-manuscript-check  # Figs. 1-2 and AAS
+```
+
+The probe's own Lens 3 output scores an exactly uniform learned matrix by tie order. The paper
+instead scores it at the chance level, which `scripts/finalize_paper_figures.py` implements. Use
+that script's values for the AAS reported in the paper. Lens 4 (communities), Lens 5 (horizon
+degradation), the walk-forward evaluation and the W&B sweeps are extra tooling that the paper does
+not report. The paper's hyperparameters are the published settings in
+`scripts/configs/models/*_base.yaml`, not sweep results.
 
 ## Structure
 
@@ -24,11 +57,9 @@ scripts/
       bigst_base.yaml
       tcn_base.yaml
       arima_base.yaml
-    sweeps/                    # per-model W&B Bayesian sweep search-space YAMLs
+    sweeps/                    # per-model W&B Bayesian sweep search spaces (not used for the paper)
     metr_la_training.yaml      # experiment config: dataset paths, horizons, output dirs
     pems_bay_training.yaml     # experiment config: dataset paths, horizons, output dirs
-    metr_la_training_in42.yaml # long-input sensitivity arm: in_len=42, h=42 (isolated *_in42/ outputs)
-    pems_bay_training_in42.yaml # long-input sensitivity arm: in_len=42, h=42 (isolated *_in42/ outputs)
     metr_la_smoke_new_models.yaml # low-cost D2STGNN/BigST integration smoke config
     metr_la_probe.yaml         # STGNN-Probe config for METR-LA (207 nodes)
     pems_bay_probe.yaml        # STGNN-Probe config for PEMS-BAY (325 nodes)
@@ -42,6 +73,7 @@ scripts/
   run_dummy_e2e.py             # deterministic smoke test (all models, CPU)
   prepare_probe_raw_data.py    # export STGNN-Probe inputs from raw data
   reextract_adjacency.py       # re-extract learned adjacency from saved checkpoints (no retraining)
+  finalize_paper_figures.py    # paper Figs. 1-2; computes the reported AAS (uniform matrices at chance)
 ```
 
 ### Implemented models
@@ -66,6 +98,9 @@ The current config-driven trainer uses `data.tsl_pipeline`, which loads
 `tsl.datasets.MetrLA` and `tsl.datasets.PemsBay` directly. The tsl cache is written under
 `data/tsl_cache/` on first use and is intentionally gitignored. The trainer derives the graph
 from the tsl dataset connectivity and builds a common 3-channel input `[speed, tod, dow/7]`.
+`tsl.datasets.MetrLA` forward-fills METR-LA's zero-coded missing readings, so training targets,
+test targets and the Granger reference all use the imputed series. The masked loss
+(`null_val: 0.0`) therefore only excludes the few zeros left in PEMS-BAY.
 
 The older local preparation scripts are still available for manual fixed-split or walk-forward
 experiments, but they are not required for the default `scripts/run_training.py` flow.
@@ -148,21 +183,6 @@ Temporal baselines (`arima`, `tcn`) are added by the orchestrator. The smoke con
 `scripts/configs/metr_la_smoke_new_models.yaml` is scoped to `d2stgnn` and `bigst`, one horizon,
 one seed, and short training for integration checks.
 
-#### Long-input sensitivity arm (`in_len = 42`)
-
-`scripts/configs/{metr_la,pems_bay}_training_in42.yaml` re-run the same models at a 42-step input
-window (`in_len=42`) predicting the 210-minute horizon (`h=42`), to test whether the STGNN
-advantage over the temporal baseline persists once every model receives more context. The
-dilated-convolution models (`tcn`, `gwn`, `gwn_v2`, `stawnet`, `dssa_tcn`) are
-deepened via `model_overrides` so their temporal receptive field spans the full 42-step window
-(RF = 43); the attention/transformer models consume the window natively. All artifacts write to
-isolated `*_in42/` paths, so this arm never overwrites the main `in_len=12` benchmark.
-
-```bash
-python scripts/run_training.py --config scripts/configs/metr_la_training_in42.yaml
-python scripts/run_training.py --config scripts/configs/pems_bay_training_in42.yaml
-```
-
 #### Re-extracting learned adjacency from checkpoints
 
 `scripts/reextract_adjacency.py` regenerates the exported `*_adjacency*.npy` for the
@@ -234,7 +254,7 @@ These generated payloads are ignored by Git. The repository tracks `.gitkeep` st
 expected directories exist without committing checkpoint data, probe reports, tsl cache files, or
 large arrays.
 
-### 3. Hyperparameter sweep (W&B)
+### 3. Hyperparameter sweep (W&B, not used in the paper)
 
 Run a Bayesian sweep over architecture and training hyperparameters:
 
@@ -295,7 +315,7 @@ metrics table; the shared TCN uses the standard neural-model logger. ARIMA is de
 is fitted once, tiled across the three probe run columns, and logged under
 `outputs/<dataset>/runs/arima/deterministic`.
 
-### 4. Walk-forward validation
+### 4. Walk-forward validation (not used in the paper)
 
 Train and evaluate a model independently on each expanding-window fold:
 
@@ -323,27 +343,26 @@ BigST convert day-of-week back to integer indices for embedding lookups inside t
 
 ## STGNN-Probe Analysis
 
-`src/analysis/` contains STGNN-Probe, a model-agnostic, plug-and-play analysis framework that
-evaluates whether Spatial-Temporal Graph Neural Networks (STGNNs) learn spatial dependency
-structures that align with Granger-inferred directional dependencies in traffic networks. For
-each model, it consumes standardized forecast predictions and the model's learned adjacency or
-spatial dependency matrix, then produces a standardized validation report.
+`src/analysis/` contains STGNN-Probe, the analysis code behind the paper. For each model it reads
+per-window forecast predictions and the model's exported `N x N` learned dependency matrix, and
+compares them with a per-sensor temporal baseline and a Granger predictive reference. The
+Granger reference is a linear statistical reference, not a physical or ground-truth graph.
 
-STGNN-Probe uses a five-lens workflow to check whether model spatial structure is useful,
-Granger-grounded, and stable across horizons:
+Lens 0 (MAE), Lens 1 (SGS), Lens 2 (Granger reference) and Lens 3 (AAS) produce the paper's
+results. Lenses 4 and 5 are additional diagnostics that the paper does not report:
 
-1. Spatial Utility compares STGNN predictions against the TCN baseline and reports per-node
-   Spatial Gain Scores.
-2. Causal Grounding builds a Granger Causality Graph from raw traffic series.
-3. Structural Alignment compares learned adjacency weights with the Granger graph.
-4. Community Coherence checks learned graph communities against geographic structure.
-5. Horizon Degradation tracks spatial utility and alignment as the forecast horizon grows.
+1. Spatial Utility compares STGNN predictions against the per-sensor TCN and reports per-node
+   Spatial Gain Scores (SGS).
+2. The Granger reference keeps each sensor's top-k incoming sources by fixed-lag F-statistic.
+3. Structural Alignment measures the overlap of each model's top-k edges with that reference (AAS).
+4. Community Coherence checks learned graph communities against geographic structure (not in the paper).
+5. Horizon Degradation tracks SGS and AAS across horizons (not in the paper).
 
 Functionally, the current implementation covers the intended STGNN-Probe analysis methods:
 
 - TCN differencing is Lens 1's Spatial Gain Score, computed from TCN predictions, model
   predictions, and `ground_truth.npy`.
-- Granger causality is Lens 2's cached dataset-level Granger Causality Graph.
+- The Granger predictive reference is Lens 2's cached dataset-level graph (fixed lag 12, top-10 sources).
 - Pearson correlation is Lens 2's lagged Pearson correlation tensor, saved with Granger outputs.
 - Adjacency comparison is Lens 3's precision, recall, AAS/F1, weighted precision, threshold
   sweep, and TP/FP/FN edge matrix.
@@ -499,18 +518,27 @@ datasets:
     ground_truth: data/probe_inputs/metr_la/ground_truth.npy
     predictions_dir: data/probe_inputs/metr_la/predictions
     adjacency_dir: data/probe_inputs/metr_la/adjacency
-    horizons: [6, 12, 18, 24, 30, 36, 42]
-    horizon_minutes: [30, 60, 90, 120, 150, 180, 210]
+    horizons: [6, 12, 42]
+    horizon_minutes: [30, 60, 210]
 
 models:
   temporal_baselines: [arima, tcn]
   spatial_models: [gwn, gwn_v2, stawnet, staeformer, dssa_tcn, d2stgnn, bigst]
 
 granger:
-  max_lag: 42
+  # Fixed lag p = 12 for every ordered pair (no lag selection), matching the
+  # 12-step model input window. The reference is fitted once on the full series.
+  max_lag: 12
   significance: 0.05
-  lag_selection: AIC
-  n_jobs: -1
+  # GCG keeps each node's top-k strongest incoming edges by F-statistic
+  # (density = k/(N-1) ~= 5% at k=10, N=207). Effect-size sparsification —
+  # p-value significance is non-discriminative here. Re-derived from cached
+  # F-stats, so changing this does NOT rerun the Granger tests.
+  gcg_top_k: 10
+  # -1 (all cores) oversubscribed RAM: each forked worker holds 2-3GB
+  # resident (torch/numpy/statsmodels), so all-cores on this box pushed
+  # combined RES past 128GB RAM and swap filled, grinding to a crawl.
+  n_jobs: 16
 
 community:
   algorithm: louvain
@@ -524,14 +552,15 @@ alignment:
   sweep_max: 1.0
   sweep_steps: 21
 
-sgs_threshold: 0.1
+sgs_threshold: 0.1        # absolute-SGS reference (target units); reporting only
+sgs_rel_threshold: 0.01   # relative-SGS threshold for node labels (1% of TCN MAE, scale-free)
 
 performance:
   primary_metric: mae
   horizon_groups:
     short_range: [30]
     boundary: [60]
-    long_range: [90, 120, 150, 180, 210]
+    long_range: [210]
   baselines:
     statistical: arima
     temporal: tcn
@@ -546,7 +575,10 @@ performance:
 ```
 
 **`scripts/configs/pems_bay_probe.yaml`** is identical except `name: PEMS-BAY`,
-`num_nodes: 325`, and all paths use `data/probe_inputs/pems_bay/`.
+`num_nodes: 325`, all paths use `data/probe_inputs/pems_bay/`, and `n_jobs` differs.
+`sgs_threshold` (absolute, in mph) is reported only; the paper's sensor classes use
+`sgs_rel_threshold`. `alignment.threshold` is unused when `gcg_top_k` is set, which is the case for
+the paper.
 
 **`scripts/configs/metr_la_smoke_probe.yaml`** is a single-horizon companion config for
 `scripts/configs/metr_la_smoke_new_models.yaml`. It points at

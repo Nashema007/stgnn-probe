@@ -11,9 +11,10 @@ import yaml
 
 @dataclass
 class GrangerConfig:
-    max_lag: int = 42
+    # Fixed lag p = max_lag for every pair (no lag selection); 12 matches the
+    # 12-step model input window used in the paper.
+    max_lag: int = 12
     significance: float = 0.05
-    lag_selection: str = "AIC"
     n_jobs: int = -1
     # The GCG keeps each target node's top-k strongest incoming causal edges by
     # F-statistic (effect size), giving a fixed per-node density of k/(N-1).
@@ -50,8 +51,8 @@ class DatasetConfig:
     ground_truth: str | None = None
     predictions_dir: str | None = None
     adjacency_dir: str | None = None
-    horizons: list[int] = field(default_factory=lambda: [6, 12, 18, 24, 30, 36, 42])
-    horizon_minutes: list[int] = field(default_factory=lambda: [30, 60, 90, 120, 150, 180, 210])
+    horizons: list[int] = field(default_factory=lambda: [6, 12, 42])
+    horizon_minutes: list[int] = field(default_factory=lambda: [30, 60, 210])
 
 
 @dataclass
@@ -75,7 +76,7 @@ class PerformanceConfig:
         default_factory=lambda: {
             "short_range": [30],
             "boundary": [60],
-            "long_range": [90, 120, 150, 180, 210],
+            "long_range": [210],
         }
     )
     baselines: dict[str, str] = field(

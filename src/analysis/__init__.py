@@ -1,12 +1,13 @@
 """STGNN-Probe: analysis framework for validating spatial dependencies in STGNNs.
 
-Six lenses:
+Six lenses. The paper reports Lenses 0-3 (MAE, SGS, the Granger reference and
+AAS); Lenses 4-5 are additional diagnostics that the paper does not use.
   0. Performance Benchmark — raw forecasting accuracy across models and horizons
-  1. Spatial Utility   — where in the network does spatial context help/hurt?
-  2. Causal Grounding  — ground-truth dependency graph via Granger causality
-  3. Structural Align  — does the learned graph match the causal ground truth?
+  1. Spatial Utility   — baseline-relative gain (SGS) over the per-sensor TCN
+  2. Granger Reference — pairwise Granger predictive reference (not a ground truth)
+  3. Structural Align  — overlap of learned top-k edges with the reference (AAS)
   4. Community Coher.  — do learned communities match geographic structure?
-  5. Horizon Degrad.   — how do spatial utility and alignment degrade with horizon?
+  5. Horizon Degrad.   — how do spatial utility and alignment change with horizon?
 """
 
 from .config import (

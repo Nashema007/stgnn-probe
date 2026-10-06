@@ -6,9 +6,7 @@ datasets:
     ground_truth: data/probe_inputs/metr_la/ground_truth.npy
     predictions_dir: data/probe_inputs/metr_la/predictions
     adjacency_dir: data/probe_inputs/metr_la/adjacency
-    # horizons: [6, 12, 18, 24, 30, 36, 42]
     horizons: [6, 12, 42]
-    # horizon_minutes: [30, 60, 90, 120, 150, 180, 210]
     horizon_minutes: [30, 60, 210]
 
 models:
@@ -16,10 +14,11 @@ models:
   spatial_models: [gwn, gwn_v2, stawnet, staeformer, dssa_tcn, d2stgnn, bigst]
 
 granger:
-  max_lag: 42
+  # Fixed lag p = 12 for every ordered pair (no lag selection), matching the
+  # 12-step model input window. The reference is fitted once on the full series.
+  max_lag: 12
   significance: 0.05
-  lag_selection: AIC
-  # GCG keeps each node's top-k strongest incoming causal edges by F-statistic
+  # GCG keeps each node's top-k strongest incoming edges by F-statistic
   # (density = k/(N-1) ~= 5% at k=10, N=207). Effect-size sparsification —
   # p-value significance is non-discriminative here. Re-derived from cached
   # F-stats, so changing this does NOT rerun the Granger tests.
@@ -49,7 +48,6 @@ performance:
   horizon_groups:
     short_range: [30]
     boundary: [60]
-    # long_range: [90, 120, 150, 180, 210]
     long_range: [210]
   baselines:
     statistical: arima

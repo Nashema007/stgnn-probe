@@ -1,7 +1,8 @@
-"""Lens 2 — Causal Grounding Test.
+"""Lens 2 — Granger predictive reference.
 
-Builds the ground-truth dependency graph using pairwise Granger causality
-tests on the raw traffic time series.  Runs once per dataset and is cached.
+Builds a directed predictive reference graph from pairwise Granger F-tests on
+the raw traffic series. It is a linear statistical reference, not a physical or
+ground-truth graph. Runs once per dataset and is cached.
 
 Input shape
 -----------
@@ -178,7 +179,7 @@ def build_gcg_topk(fstats: np.ndarray, top_k: int) -> np.ndarray:
 
 def run_lens2(
     raw_traffic: np.ndarray,
-    max_lag: int = 42,
+    max_lag: int = 12,
     significance: float = 0.05,
     n_jobs: int = -1,
     top_k: int = 10,
@@ -190,7 +191,8 @@ def run_lens2(
     raw_traffic:
         Raw (un-normalized) sensor readings, shape (T, N).
     max_lag:
-        Maximum lag to consider.  Set equal to the longest prediction horizon.
+        Fixed autoregressive lag used for every pair. The paper uses 12, matching
+        the 12-step model input window.
     significance:
         Nominal significance level. Retained for the reported Bonferroni
         threshold and the p-value diagnostic histogram; the GCG itself is built

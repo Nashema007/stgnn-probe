@@ -26,8 +26,7 @@ def test_excess_modularity_is_observed_minus_null() -> None:
 def test_perfect_monotone_alignment_gives_rho_one() -> None:
     # AAS and excess modularity increase together across models -> rho = +1.
     summaries = {
-        f"m{i}": _summary(sgs=0.0, aas=0.1 * i, mod=0.1 * i + 0.3, null=0.2)
-        for i in range(5)
+        f"m{i}": _summary(sgs=0.0, aas=0.1 * i, mod=0.1 * i + 0.3, null=0.2) for i in range(5)
     }
     out = compute_cross_model_correlations(summaries)
     assert out["n"] == 5
@@ -39,10 +38,7 @@ def test_perfect_monotone_alignment_gives_rho_one() -> None:
 
 
 def test_reversed_order_gives_rho_minus_one() -> None:
-    summaries = {
-        f"m{i}": _summary(sgs=0.1 * i, aas=-0.1 * i, mod=0.3, null=0.2)
-        for i in range(4)
-    }
+    summaries = {f"m{i}": _summary(sgs=0.1 * i, aas=-0.1 * i, mod=0.3, null=0.2) for i in range(4)}
     corr = compute_cross_model_correlations(summaries)["correlations"]["sgs_rel__aas"]
     assert corr["rho"] == pytest.approx(-1.0)
 

@@ -58,7 +58,7 @@ gaps into ~1/eps blow-ups (MAPE in the tens of millions of percent)."""
 _DEFAULT_HORIZON_GROUPS: dict[str, list[int]] = {
     "short_range": [30],
     "boundary": [60],
-    "long_range": [90, 120, 150, 180, 210],
+    "long_range": [210],
 }
 
 _MODEL_REGISTRY_DATA: list[dict[str, str]] = [

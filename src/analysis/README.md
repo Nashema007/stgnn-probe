@@ -4,6 +4,8 @@
 
 Lens 0 establishes the forecasting performance baseline before any spatial interpretation begins. Lenses 1–5 then interpret *why* models perform the way they do.
 
+> **Scope of the paper.** The paper reports Lenses 0–3 only: MAE (Lens 0), SGS (Lens 1), the fixed-lag Granger reference (Lens 2) and AAS (Lens 3), with the settings in `scripts/configs/<dataset>_probe.yaml`. Lenses 4 and 5 and the absolute-threshold alignment modes described below are additional diagnostics. The paper's AAS scores exactly uniform learned matrices at the chance level `k/(N-1)` (see `scripts/finalize_paper_figures.py`); Lens 3 as shipped scores them by tie order.
+
 Each lens addresses one dimension of that question. Together they form a diagnostic pipeline that runs on any model that exposes per-node predictions and, for Lenses 1–5, a learned adjacency matrix.
 
 ---
@@ -15,7 +17,7 @@ Each lens addresses one dimension of that question. Together they form a diagnos
 - [Output directory layout](#output-directory-layout)
 - [Lens 0 — Forecasting Performance Benchmark](#lens-0--forecasting-performance-benchmark)
 - [Lens 1 — Spatial Utility Test](#lens-1--spatial-utility-test)
-- [Lens 2 — Causal Grounding Test](#lens-2--causal-grounding-test)
+- [Lens 2 — Granger Predictive Reference](#lens-2--granger-predictive-reference)
 - [Lens 3 — Structural Alignment Test](#lens-3--structural-alignment-test)
 - [Lens 4 — Community Coherence Test](#lens-4--community-coherence-test)
 - [Lens 5 — Horizon Degradation Test](#lens-5--horizon-degradation-test)
@@ -271,7 +273,7 @@ result = run_lens0(
     dataset="METR-LA",
     ground_truth=ground_truth,
     predictions=predictions,
-    horizons=[30, 60, 90, 120, 150, 180, 210],
+    horizons=[30, 60, 210],
     model_groups={
         "statistical_baseline": ["arima"],
         "temporal_baseline": ["tcn"],
@@ -321,7 +323,11 @@ SGS(i, h) = MAE_TCN(i, h) − MAE_model(i, h)
 - **Negative SGS** — the spatial model was less accurate. The learned graph introduced noise.
 - **Zero SGS** — spatial context had no effect.
 
-The mean across horizons, SGS_mean(i), classifies every node as **beneficial** (> threshold), **harmful** (< −threshold), or **neutral**.
+The paper reports the **relative** gain, `SGS_rel(i, h) = SGS(i, h) / MAE_TCN(i, h)`. Node labels use the
+mean of `SGS_rel(i, h)` over horizons: **beneficial** above `sgs_rel_threshold` (0.01), **harmful** below
+−0.01, otherwise **neutral**. The headline `mean_sgs_rel` pools numerator and denominator,
+`sum(SGS) / sum(MAE_TCN)`. SGS compares the complete STGNN with the temporal baseline; it does not
+isolate the spatial mechanism, so "spatial context helped" below is shorthand for that comparison.
 
 ### Reports and how to read them
 
@@ -350,16 +356,16 @@ Two panels: mean SGS across all nodes at each prediction horizon (left) and the 
 
 ---
 
-## Lens 2 — Causal Grounding Test
+## Lens 2 — Granger Predictive Reference
 
 **File:** `lens2_granger.py`<br>
-**Key output:** `gcg_matrix` (N × N binary), `optimal_lags` (N × N int)
+**Key output:** `gcg_matrix` (N × N binary top-k reference), `granger_fstats` (N × N)
 
 ### What it measures
 
 Lens 2 constructs a **statistical reference dependency graph** from the raw traffic time series using pairwise Granger causality tests. For every ordered pair (i, j), it asks: *does knowing the history of node i improve prediction of node j beyond its own history alone?*
 
-The test is run at all lags up to `max_lag` (default 42 time-steps = 210 minutes). The lag with the lowest AIC on the unrestricted model is selected. Pairs are declared Granger-dependent if their F-test p-value survives **Bonferroni correction** across all N(N−1) off-diagonal tests. The resulting binary matrix is the **Granger Causality Graph (GCG)**.
+Every ordered pair is tested with the same **fixed lag** `p = max_lag` (12 steps = 60 minutes, matching the model input window; there is no per-pair lag selection), so all F-statistics share their degrees of freedom and can be ranked against each other. For each target sensor j, the `gcg_top_k` (10) sources i with the largest F-statistic are kept. The resulting binary matrix is the reference graph (`gcg_matrix`, historically called the Granger Causality Graph, GCG). The reference is fitted once on the full series. p-values are kept only as a diagnostic: with series this long almost every pair is significant, so significance cannot control the graph's density.
 
 > **On the word "causal":** Granger causality tests *predictive temporal dependence*, not true mechanistic causation. Traffic data is observational, and Granger tests can flag shared periodic patterns, confounders, and non-stationarity as apparent dependencies. The GCG is a principled statistical reference structure — not a ground-truth causal graph. Conclusions in this framework are framed as alignment with Granger-inferred dependencies, not proof of causation.
 
@@ -368,9 +374,9 @@ This step is expensive (O(N²) regressions) and is computed **once per dataset**
 ### Reports and how to read them
 
 #### `gcg_heatmap.html`
-An N×N binary heatmap. A blue cell at (i, j) means node i Granger-causes node j at the Bonferroni-corrected threshold.
+An N×N binary heatmap. A blue cell at (i, j) means node i is among the top-k Granger sources of node j.
 
-*What to look for:* The **edge density** (shown in the subtitle) tells you how structured the traffic network is. METR-LA typically has a density of 0.10–0.20, reflecting that most sensor pairs show no statistically significant Granger dependence at any lag after Bonferroni correction. A density near zero may indicate the significance threshold is too conservative; a density near 0.5 may indicate spurious correlations or a non-stationarity issue. Bands of dense rows/columns indicate highly influential or highly influenced sensors — these are candidate nodes to watch in Lens 1.
+*What to look for:* The edge density is fixed by construction at k/(N−1) per target sensor (about 5% on METR-LA and 3% on PEMS-BAY at k = 10). Bands of dense rows/columns indicate highly influential or highly influenced sensors — these are candidate nodes to watch in Lens 1.
 
 #### `gcg_network.html`
 A force-directed network graph (spring layout, seed-0 for reproducibility) showing the directed Granger causality graph. Node hover shows out-degree.
@@ -383,15 +389,13 @@ A force-directed network graph (spring layout, seed-0 for reproducibility) showi
 |---|---|---|
 | `gcg_matrix.npy` | (N, N) uint8 | Binary Granger graph. |
 | `granger_pvalues.npy` | (N, N) float64 | Raw p-values (diagonal = 1.0). |
-| `granger_fstats.npy` | (N, N) float64 | F-statistics at optimal lag. |
+| `granger_fstats.npy` | (N, N) float64 | F-statistics at the fixed lag. |
 | `pearson_correlations.npy` | (N, N, L) float64 | Lagged Pearson correlations for all lags 1…L. |
-| `optimal_lags.npy` | (N, N) int32 | AIC-optimal lag per pair; 0 = no significant Granger dependence detected, or test failed. |
+| `optimal_lags.npy` | (N, N) int32 | Lag used per pair (always `max_lag`); 0 = the test failed. |
 
-The `optimal_lags` matrix is retained as a Lens 2 diagnostic (it records the
-AIC-optimal lag per Granger-dependent pair). Note the AIC-optimal lags on real
-traffic cluster at long values, so it is *not* used to build horizon-restricted
-GCGs (that made short-horizon GCGs empty); Lens 5 instead varies the model's
-per-horizon learned graph against the fixed GCG.
+`optimal_lags` is kept for cache compatibility. Caches written by older versions of this code, which
+used AIC lag selection up to `max_lag`, contain varying lags; check this array before reusing a
+cache, and pass `--force-granger` after changing `max_lag` (the cache is keyed by dataset only).
 
 ---
 
@@ -585,7 +589,9 @@ Typical notebook workflow:
 
 ## Interpreting the headline finding
 
-The framework is designed to test one specific hypothesis derived from the study's theoretical framework:
+> This section describes an exploratory Lens 5 hypothesis from an earlier stage of the project. The paper does not test it: it reports SGS and AAS separately and finds that their model rankings differ.
+
+The framework was originally designed to test one specific hypothesis:
 
 > *An STGNN whose structural alignment with the Granger Causality Graph degrades more slowly across prediction horizons (AAS rate) will also exhibit slower spatial utility degradation (SGS rate).*
 
@@ -612,58 +618,69 @@ The framework is designed to test one specific hypothesis derived from the study
 ## Configuration reference
 
 ```yaml
-# scripts/configs/metr_la_probe.yaml
-
+# scripts/configs/metr_la_probe.yaml (the paper's configuration)
 datasets:
   - name: METR-LA
     num_nodes: 207
-    raw_data: data/probe_inputs/metr_la/metr_la_raw.npy      # (T, N) raw readings, not normalised
-    coordinates: data/probe_inputs/metr_la/metr_la_coords.csv  # node_id, latitude, longitude
-    ground_truth: data/probe_inputs/metr_la/ground_truth.npy   # (W, H, N) paired test-window targets
-    predictions_dir: data/probe_inputs/metr_la/predictions     # {model}_predictions.npy → (W, H, N, R)
-    adjacency_dir: data/probe_inputs/metr_la/adjacency         # {model}_adjacency.npy → (N, N)
-    horizons: [6, 12, 18, 24, 30, 36, 42]                     # horizon indices (time-steps)
-    horizon_minutes: [30, 60, 90, 120, 150, 180, 210]         # human-readable labels for plots
+    raw_data: data/probe_inputs/metr_la/metr_la_raw.npy
+    coordinates: data/probe_inputs/metr_la/metr_la_coords.csv
+    ground_truth: data/probe_inputs/metr_la/ground_truth.npy
+    predictions_dir: data/probe_inputs/metr_la/predictions
+    adjacency_dir: data/probe_inputs/metr_la/adjacency
+    horizons: [6, 12, 42]
+    horizon_minutes: [30, 60, 210]
 
 models:
   temporal_baselines: [arima, tcn]
-  spatial_models: [gwn, gwn_v2, stawnet, dssa_tcn, staeformer]
+  spatial_models: [gwn, gwn_v2, stawnet, staeformer, dssa_tcn, d2stgnn, bigst]
 
 granger:
-  max_lag: 42          # = longest horizon in time-steps; limits what Granger-detectable lags can be tested
-  significance: 0.05   # nominal α before Bonferroni correction
-  lag_selection: AIC   # criterion for optimal lag selection per pair
-  n_jobs: -1           # -1 = all CPU cores; set to 1 for debugging
+  # Fixed lag p = 12 for every ordered pair (no lag selection), matching the
+  # 12-step model input window. The reference is fitted once on the full series.
+  max_lag: 12
+  significance: 0.05
+  # GCG keeps each node's top-k strongest incoming edges by F-statistic
+  # (density = k/(N-1) ~= 5% at k=10, N=207). Effect-size sparsification —
+  # p-value significance is non-discriminative here. Re-derived from cached
+  # F-stats, so changing this does NOT rerun the Granger tests.
+  gcg_top_k: 10
+  # -1 (all cores) oversubscribed RAM: each forked worker holds 2-3GB
+  # resident (torch/numpy/statsmodels), so all-cores on this box pushed
+  # combined RES past 128GB RAM and swap filled, grinding to a crawl.
+  n_jobs: 16
 
 community:
   algorithm: louvain
-  num_runs: 10         # best of N Louvain runs by modularity
-  resolution: 1.0      # higher values → more, smaller communities
-  random_seed: 0       # base seed; each run uses seed + run_index
+  num_runs: 10
+  resolution: 1.0
+  random_seed: 0
 
 alignment:
-  threshold: 0.1       # default edge-weight cutoff for headline AAS
+  threshold: 0.1
   sweep_min: 0.0
   sweep_max: 1.0
-  sweep_steps: 21      # 21 points = 0.05 increments
+  sweep_steps: 21
 
-sgs_threshold: 0.1     # |SGS_mean| below this is classified as neutral
+sgs_threshold: 0.1        # absolute-SGS reference (target units); reporting only
+sgs_rel_threshold: 0.01   # relative-SGS threshold for node labels (1% of TCN MAE, scale-free)
 
 performance:
-  primary_metric: mae          # metric used for model_rankings_by_horizon/group and best_by_horizon
+  primary_metric: mae
   horizon_groups:
     short_range: [30]
     boundary: [60]
-    long_range: [90, 120, 150, 180, 210]
+    long_range: [210]
   baselines:
-    statistical: arima         # used for baseline_improvements
+    statistical: arima
     temporal: tcn
   model_groups:
     statistical_baseline: [arima]
     temporal_baseline: [tcn]
     graph_wavenet_based: [gwn, gwn_v2]
     attention_adaptive_stgnn: [stawnet, dssa_tcn, staeformer]
-  ranking_lower_is_better: true # False for metrics where higher is better
+    decoupled_stgnn: [d2stgnn]
+    linear_complexity_stgnn: [bigst]
+  ranking_lower_is_better: true
 ```
 
 ### Per-horizon adjacency (optional)

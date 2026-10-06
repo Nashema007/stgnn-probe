@@ -65,6 +65,7 @@ Usage
     python scripts/finalize_paper_figures.py                  # -> figures/
     python scripts/finalize_paper_figures.py --out build/figs
     python scripts/finalize_paper_figures.py --aas-source outputs_fixed12
+    python scripts/finalize_paper_figures.py --aas-source outputs --no-manuscript-check   # a re-run
 """
 
 from __future__ import annotations
@@ -76,6 +77,10 @@ import json
 import sys
 import tarfile
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -200,7 +205,7 @@ def _resolve_aas_source(root: Path, explicit: Path | None) -> Path:
     )
 
 
-def _load_granger_fstats(source: Path) -> dict[str, "np.ndarray"]:
+def _load_granger_fstats(source: Path) -> dict[str, np.ndarray]:
     """Read the fixed-p=12 Granger F-statistics for both datasets."""
     import numpy as np
 
@@ -216,12 +221,12 @@ def _load_granger_fstats(source: Path) -> dict[str, "np.ndarray"]:
         wanted = {f"{AAS_TREE}/{p}": ds for ds, p in rel.items()}
         with tarfile.open(source) as tar:
             for member in tar:
-                ds = wanted.get(member.name.lstrip("./"))
-                if ds is None:
+                name = wanted.get(member.name.lstrip("./"))
+                if name is None:
                     continue
                 handle = tar.extractfile(member)
                 if handle is not None:
-                    out[ds] = np.load(io.BytesIO(handle.read()))["fstats"]
+                    out[name] = np.load(io.BytesIO(handle.read()))["fstats"]
         missing = set(rel) - set(out)
         if missing:
             raise FileNotFoundError(f"{source} is missing {sorted(missing)} under {AAS_TREE}/")
@@ -278,7 +283,8 @@ def _compute_aas(source: Path, root: Path) -> tuple[dict[str, list[float]], dict
         for slug in MODEL_SLUGS:
             scores = []
             for horizon in (6, 12, 42):
-                path = root / f"data/probe_inputs/{dirs[ds]}/adjacency/{slug}_adjacency_h{horizon}_seeds.npy"
+                adjacency_dir = root / f"data/probe_inputs/{dirs[ds]}/adjacency"
+                path = adjacency_dir / f"{slug}_adjacency_h{horizon}_seeds.npy"
                 if not path.is_file():
                     raise FileNotFoundError(f"missing adjacency {path}")
                 stack = np.load(path)
@@ -295,7 +301,8 @@ def _compute_aas(source: Path, root: Path) -> tuple[dict[str, list[float]], dict
                     precision = shared / max(int(learned.sum()), 1)
                     recall = shared / max(n_ref, 1)
                     scores.append(
-                        0.0 if precision + recall == 0
+                        0.0
+                        if precision + recall == 0
                         else 2 * precision * recall / (precision + recall)
                     )
             row.append(float(np.mean(scores)))
@@ -309,13 +316,14 @@ def _check_against_table3(loaded: dict[str, list[float]]) -> None:
     bad = [
         f"{ds}/{name}: computed {v:.4f} -> {round(v, 3)}, manuscript says {e:.3f}"
         for ds, expected in AAS_P12_EXPECTED.items()
-        for name, v, e in zip(MODELS, loaded[ds], expected)
+        for name, v, e in zip(MODELS, loaded[ds], expected, strict=True)
         if round(v, 3) != e
     ]
     if bad:
         raise ValueError(
-            "Computed AAS disagrees with the manuscript:\n  " + "\n  ".join(bad) +
-            "\nEither the wrong source was read, or the manuscript needs updating."
+            "Computed AAS disagrees with the manuscript:\n  "
+            + "\n  ".join(bad)
+            + "\nEither the wrong source was read, or the manuscript needs updating."
         )
 
 
@@ -325,7 +333,7 @@ def _build_fig2_spec(dataset: str, values: list[float]) -> str:
     # Headroom for the value labels above each bar; 1.28 reproduces the domain
     # of the previously approved figure (0.489 -> 0.627 on METR-LA).
     domain = [0, max(values) * 1.28]
-    rows = [{"model": m, "AAS": v} for m, v in zip(MODELS, values)]
+    rows = [{"model": m, "AAS": v} for m, v in zip(MODELS, values, strict=True)]
 
     x_enc = {
         "field": "model",
@@ -430,6 +438,12 @@ def main(argv: list[str] | None = None) -> int:
         f"{AAS_TREE}/per_model/. Defaults to the first of "
         f"{AAS_SOURCE_CANDIDATES} that exists under --root.",
     )
+    parser.add_argument(
+        "--no-manuscript-check",
+        action="store_true",
+        help="Skip asserting the computed AAS against the published values; needed for a "
+        "re-run, whose seeds differ from the paper's.",
+    )
     args = parser.parse_args(argv)
 
     formats = [f.strip().lower() for f in args.formats.split(",") if f.strip()]
@@ -456,25 +470,41 @@ def main(argv: list[str] | None = None) -> int:
         _refit_fig1_axes(fig, base)
         _apply_fig1_display_names(fig)
         if not legend_written:
-            _emit("plotly", _build_legend_strip(fig), "fig1_sgs_legend", args.out, formats,
-                  args.scale, gs)
+            _emit(
+                "plotly",
+                _build_legend_strip(fig),
+                "fig1_sgs_legend",
+                args.out,
+                formats,
+                args.scale,
+                gs,
+            )
             legend_written = True
         _strip_legend(fig)
         _emit("plotly", fig, base, args.out, formats, args.scale, gs)
 
     aas_source = _resolve_aas_source(args.root, args.aas_source)
     aas, uniform = _compute_aas(aas_source, args.root)
-    _check_against_table3(aas)
+    if args.no_manuscript_check:
+        print(f"fig2: AAS computed against {aas_source} (manuscript check skipped)")
+        for ds, values in aas.items():
+            pairs = zip(MODELS, values, strict=True)
+            print(f"  {ds}: " + ", ".join(f"{m} {v:.3f}" for m, v in pairs))
+    else:
+        _check_against_table3(aas)
+        print(f"fig2: AAS computed against {aas_source} ({AAS_TREE}); all 14 match the manuscript")
     total_uniform = sum(uniform.values())
-    print(f"fig2: AAS computed against {aas_source} ({AAS_TREE}); all 14 match the manuscript")
-    print(f"  exactly-uniform representations scored at chance k/(N-1): "
-          f"{total_uniform} of 126 "
-          f"({uniform['METR-LA']} METR-LA, {uniform['PEMS-BAY']} PEMS-BAY)")
+    print(
+        f"  exactly-uniform representations scored at chance k/(N-1): "
+        f"{total_uniform} of 126 "
+        f"({uniform['METR-LA']} METR-LA, {uniform['PEMS-BAY']} PEMS-BAY)"
+    )
     for dataset, base in FIG2_BASENAME.items():
         expected = TOP_K / (NUM_NODES[dataset] - 1)
         print(f"  {dataset}: expected random overlap k/(N-1) = {expected:.3f}")
-        _emit("vega", _build_fig2_spec(dataset, aas[dataset]), base, args.out, formats,
-              args.scale, gs)
+        _emit(
+            "vega", _build_fig2_spec(dataset, aas[dataset]), base, args.out, formats, args.scale, gs
+        )
 
     return 0
 

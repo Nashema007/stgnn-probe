@@ -70,7 +70,7 @@ def _default_run_order(spatial_models: list[str]) -> list[str]:
 class TrainingExperimentConfig:
     dataset_name: str
     num_nodes: int
-    horizons: list[int] = field(default_factory=lambda: [6, 12, 18, 24, 30, 36, 42])
+    horizons: list[int] = field(default_factory=lambda: [6, 12, 42])
     num_runs: int = 3
     output_dir: str = "outputs/"
     ground_truth_path: str = "data/probe_inputs/ground_truth.npy"
@@ -611,10 +611,9 @@ def _build_model_and_adapter(
             skip_channels=overrides.get("skip_channels", 256),
             end_channels=overrides.get("end_channels", 512),
             # blocks/layers set the temporal receptive field (RF = 1 + blocks*(2^layers - 1)).
-            # Defaults 4/2 -> RF 13 (covers the in_len=12 main arm); the in_len=42
-            # sensitivity arm overrides these to 6/3 -> RF 43 so the model spans the
-            # full 42-step window. Without this passthrough the override is silently
-            # dropped and DSSA-TCN trains blind to ~29 of the 42 input steps.
+            # Defaults 4/2 -> RF 13, which covers the 12-step input. A longer input
+            # window needs larger values (e.g. 6/3 -> RF 43 for 42 steps) passed via
+            # model_overrides; without this passthrough such an override is dropped.
             blocks=overrides.get("blocks", 4),
             layers=overrides.get("layers", 2),
             adjs=supports,
