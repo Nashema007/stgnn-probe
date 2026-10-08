@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Convert PNG figures to EPS for LaTeX/Overleaf inclusion.
 
+Not used for the paper's figures, which are vector EPS from pdf_to_eps.py.
+
 EPS is a vector container, but a PNG is raster, so the bitmap is embedded
 as-is (no vectorisation happens or is possible from a PNG). The physical size
 of the embedded image is set from its DPI so ``\\includegraphics`` scales it

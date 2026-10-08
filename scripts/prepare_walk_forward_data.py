@@ -1,5 +1,7 @@
 """Convert a raw HDF traffic file into a raw feature .npz for walk-forward validation.
 
+Not used in the paper; input preparation for run_walk_forward.py only.
+
 Produces a single ``<dataset>.npz`` containing a ``data: (T, N, C)`` array with
 channels ``[speed, tod, dow]``. Windowing into folds happens later at training
 time via ``load_walk_forward_datasets()`` in ``src/data/dataset.py``.

@@ -53,6 +53,7 @@ from .lens2_granger import GrangerResult, run_lens2
 from .lens3_alignment import AlignmentResult, run_lens3
 from .lens4_community import CommunityResult, run_lens4
 from .lens5_degradation import DegradationResult, run_lens5
+from .orientation import to_incoming_convention
 
 
 def _seed_mean(values: list[float]) -> float:
@@ -523,9 +524,12 @@ class ProbeRunner:
         coords = pd.read_csv(self._required_path(dataset.coordinates, "coordinates"))
         model_predictions = np.load(model_predictions_path(dataset, model_name))
         tcn_predictions = np.load(temporal_baseline_predictions_path(dataset, tcn_baseline))
-        adjacency = normalize_adjacency(
-            np.load(adjacency_path(dataset, model_name)),
-            expected_nodes=dataset.num_nodes,
+        adjacency = to_incoming_convention(
+            normalize_adjacency(
+                np.load(adjacency_path(dataset, model_name)),
+                expected_nodes=dataset.num_nodes,
+            ),
+            model_name,
         )
 
         # Try to load per-horizon adjacency files (one per configured horizon).
@@ -535,7 +539,8 @@ class ProbeRunner:
         for h in horizon_steps:
             p = model_horizon_adjacency_path(dataset, model_name, h)
             if p.exists():
-                h_adjs.append(normalize_adjacency(np.load(p), expected_nodes=dataset.num_nodes))
+                adj_h = normalize_adjacency(np.load(p), expected_nodes=dataset.num_nodes)
+                h_adjs.append(to_incoming_convention(adj_h, model_name))
         if len(h_adjs) == len(horizon_steps):
             adjacencies: list[np.ndarray] | None = h_adjs
             adjacency = np.mean(np.stack(h_adjs, axis=0), axis=0).astype(np.float64)
@@ -814,7 +819,9 @@ class ProbeRunner:
             mod_h: list[float] = []
             modz_h: list[float] = []
             for seed_adj in stack_h:
-                adj = normalize_adjacency(seed_adj, expected_nodes=n)
+                adj = to_incoming_convention(
+                    normalize_adjacency(seed_adj, expected_nodes=n), model_name
+                )
                 aas_h.append(self._lens3_f1(adj, gcg))
                 l4 = run_lens4(
                     adj,

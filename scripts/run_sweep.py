@@ -1,5 +1,8 @@
 """W&B hyperparameter sweep entry point for STGNN models.
 
+Not used in the paper: the paper uses the published hyperparameters in
+scripts/configs/models/*_base.yaml, not sweep results.
+
 Creates a W&B sweep from a sweep config YAML, then launches a sweep agent that
 trains one (model, horizon, seed) job per call, reading hyperparameter values
 from wandb.config.

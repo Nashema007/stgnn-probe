@@ -27,6 +27,8 @@ includes, and applies two layout changes for the two-column print layout:
       AAS is computed here rather than read from the probe, because the probe
       scores exactly-uniform exported matrices by argpartition tie order. See
       _compute_aas: those evaluations are assigned chance, k/(N-1), instead.
+      Every matrix is first put in the canonical source -> target orientation
+      (``analysis.orientation``); DSSA-TCN and D2STGNN are transposed.
 
 Data provenance
 ---------------
@@ -83,6 +85,7 @@ if TYPE_CHECKING:
     import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from regenerate_figures import (  # noqa: E402
     _apply_fig1_display_names,
@@ -95,6 +98,8 @@ from regenerate_figures import (  # noqa: E402
     _refit_fig1_axes,
     _write_native,
 )
+
+from analysis.orientation import to_incoming_convention  # noqa: E402
 
 FIG1_SOURCES: list[tuple[str, str]] = [
     (
@@ -120,8 +125,8 @@ MODEL_SLUGS = ["gwn", "gwn_v2", "stawnet", "dssa_tcn", "staeformer", "d2stgnn", 
 # loaded from the fixed-p=12 run (see "Data provenance") and checked against
 # these, so a figure/manuscript divergence fails loudly instead of shipping.
 AAS_P12_EXPECTED: dict[str, list[float]] = {
-    "METR-LA": [0.045, 0.065, 0.429, 0.058, 0.373, 0.056, 0.489],
-    "PEMS-BAY": [0.024, 0.041, 0.158, 0.039, 0.193, 0.033, 0.211],
+    "METR-LA": [0.045, 0.065, 0.429, 0.050, 0.373, 0.053, 0.489],
+    "PEMS-BAY": [0.024, 0.041, 0.158, 0.025, 0.193, 0.031, 0.211],
 }
 
 # Where the completed fixed-p=12 probe outputs live, in preference order.
@@ -291,7 +296,7 @@ def _compute_aas(source: Path, root: Path) -> tuple[dict[str, list[float]], dict
                 if stack.ndim == 2:
                     stack = stack[None]
                 for seed in range(stack.shape[0]):
-                    matrix = stack[seed]
+                    matrix = to_incoming_convention(stack[seed], slug)
                     if len(np.unique(matrix)) == 1:  # exactly uniform -> no ranking
                         scores.append(chance)
                         n_uniform += 1

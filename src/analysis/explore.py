@@ -1,5 +1,7 @@
 """PyGWalker exploration utility for STGNN-Probe results.
 
+Not used in the paper: an optional notebook utility.
+
 Call ``explore(result)`` in a notebook cell to open one interactive
 drag-and-drop explorer over node-level, horizon-level, and alignment metrics.
 """

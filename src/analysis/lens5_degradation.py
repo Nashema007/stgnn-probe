@@ -1,5 +1,7 @@
 """Lens 5 — Horizon Degradation Test.
 
+Not used in the paper: the per-horizon results are reported directly from Lenses 1 and 3.
+
 Synthesises Lens 1 and Lens 3 to show how spatial utility and structural
 alignment change as the prediction horizon grows.
 

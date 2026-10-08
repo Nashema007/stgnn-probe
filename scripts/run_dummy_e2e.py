@@ -1,5 +1,7 @@
 """Deterministic CPU-only dummy workflow for full STGNN-Probe wiring.
 
+Not used in the paper: a synthetic smoke test of the pipeline wiring.
+
 This script is intentionally separate from the production training configs. It
 trains tiny synthetic model runs for every supported model, exports standardized
 probe inputs, and runs STGNN-Probe to produce dummy reports and figures.

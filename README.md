@@ -1,40 +1,104 @@
 # STGNN Framework
 
-A clean PyTorch-based framework for training and analysing multiple spatio-temporal graph
-neural network (STGNN) models on traffic forecasting benchmarks. It accompanies the paper
+A PyTorch framework for training and analysing spatio-temporal graph neural network (STGNN)
+models on traffic forecasting benchmarks. It accompanies the paper
 *Analysing Spatio-Temporal Graph Neural Networks for Long-Horizon Traffic Forecasting*.
+
+The repository has two parts:
+
+- **Training** (`scripts/run_training.py`, `src/training`, `src/models`): trains seven STGNNs and
+  two temporal baselines on METR-LA and PEMS-BAY, one model per forecast horizon and seed. It
+  exports each model's test predictions and its learned N x N dependency matrix.
+- **STGNN-Probe** (`run_probe.py`, `src/analysis`): compares those exports with a per-sensor
+  temporal baseline (the Spatial Gain Score, SGS) and with a Granger predictive reference (the
+  Adjacency Alignment Score, AAS).
 
 ## Reproducing the paper
 
-The shipped configs are the paper's configuration. The settings that define the experiments are:
+Run the steps below in order. All commands are run from the repository root. On macOS, prefix
+each one with `./test.sh` so it runs inside the Linux Docker image (see
+[Environment Setup](#environment-setup)).
+
+| Step | Command | Writes |
+|---|---|---|
+| 0. Environment | `uv sync`, then install `torch-scatter`/`torch-sparse` ([details](#environment-setup)) | `.venv/` |
+| 1. Data | nothing to do: `tsl` downloads METR-LA and PEMS-BAY on first use | `data/tsl_cache/` |
+| 2. Train | `python scripts/run_training.py --config scripts/configs/metr_la_training.yaml`, then the same with `pems_bay_training.yaml` | `checkpoints/<dataset>/`, plus `data/probe_inputs/<dataset>/predictions/` and `adjacency/` |
+| 3. Probe | `python run_probe.py --config scripts/configs/metr_la_probe.yaml --all --force-granger`, then the same with `pems_bay_probe.yaml` | `outputs/` |
+| 4. Figures and AAS | `python scripts/finalize_paper_figures.py --aas-source outputs --no-manuscript-check` | `figures/` |
+
+Step 2 is the expensive one: 7 STGNNs plus the per-sensor TCN bank and ARIMA, over 3 horizons and
+3 seeds, on both datasets. Use a GPU. Retrained models will not match the paper's numbers to the
+third decimal, which is why step 4 is run with `--no-manuscript-check`. Without that flag the
+script asserts the 14 published AAS values and fails on any difference.
+
+### Where each result in the paper comes from
+
+| Paper item | Source |
+|---|---|
+| Table 4 (test MAE by horizon) | `outputs/lens0_performance/<DATASET>/metrics_by_horizon.csv` |
+| Table 5 (SGS and sensor classes) | `outputs/per_model/<model>_<DATASET>/summary.json` and `node_classification.csv` |
+| Fig. 1 (SGS by horizon) | `figures/fig1_*`, built from `outputs/lens0_performance/<DATASET>/figures/` |
+| Fig. 2 (AAS) | `figures/fig2_*`. The values are printed by `finalize_paper_figures.py` |
+| Granger reference | `outputs/granger_cache/<DATASET>.npz` (`fstats[i, j]` is the F-statistic for i -> j) |
+
+Use `finalize_paper_figures.py` for AAS, not the probe's own `alignment_scores.json`. The probe
+breaks ties arbitrarily when a learned matrix is exactly uniform. The paper scores such a matrix at
+the chance level `k/(N-1)`, and the script implements that.
+
+### Paper configuration
+
+The shipped configs are the paper's configuration.
 
 | Setting | Value | Where it is set |
 |---|---|---|
 | Datasets | METR-LA (207 sensors), PEMS-BAY (325 sensors), loaded through `tsl` | `scripts/configs/<dataset>_training.yaml` |
-| Missing readings | METR-LA's zero-coded readings (~8%) are forward-filled by `tsl`; the same series is used for training, evaluation and the Granger reference | `tsl.datasets.MetrLA` default |
+| Missing readings | METR-LA's zero-coded readings (~8%) are forward-filled by `tsl` during preprocessing, before the chronological split. The Granger reference uses the full preprocessed series | `tsl.datasets.MetrLA` default |
 | Input window | 12 steps (60 min), features `[speed, time of day, day of week]` | `in_len: 12` |
-| Forecast horizons | 6, 12 and 42 steps (30, 60 and 210 min); one model per horizon, evaluated at the final step | `horizons: [6, 12, 42]` |
+| Forecast horizons | 6, 12 and 42 steps (30, 60 and 210 min). One model per horizon, evaluated at the final step | `horizons: [6, 12, 42]` |
 | Runs | 3 seeds per model and horizon | `num_runs: 3` |
-| Split | chronological 70/10/20, Z-score fitted on the training split | `val_len: 0.125`, `test_len: 0.2` |
+| Split | chronological 70/10/20, with the Z-score fitted on the training split | `val_len: 0.125`, `test_len: 0.2` |
 | Models | GWN, GWN v2, STAWnet, DSSA-TCN, STAEformer, D2STGNN, BigST; per-sensor TCN and ARIMA baselines | `spatial_models`; `scripts/configs/models/*_base.yaml` |
+| Hyperparameters | the published settings of each model | `scripts/configs/models/*_base.yaml` |
 | SGS | relative gain over the per-sensor TCN; sensor classes use a 1% threshold | `sgs_rel_threshold: 0.01` |
 | Granger reference | pairwise F-test at a **fixed lag p = 12** for every pair, fitted on the full series; top `k = 10` incoming sources per sensor | `granger.max_lag: 12`, `granger.gcg_top_k: 10` |
-| AAS | overlap of each model's top-10 incoming edges with the reference, averaged over 3 horizons x 3 seeds; exactly uniform matrices are scored at the chance level `k/(N-1)` | `scripts/finalize_paper_figures.py` |
+| AAS | overlap of each model's top-10 incoming edges with the reference, averaged over 3 horizons x 3 seeds. Exactly uniform matrices are scored at the chance level `k/(N-1)` | `scripts/finalize_paper_figures.py` |
 
-```bash
-python scripts/run_training.py --config scripts/configs/metr_la_training.yaml
-python scripts/run_training.py --config scripts/configs/pems_bay_training.yaml
-python run_probe.py --config scripts/configs/metr_la_probe.yaml --all --force-granger
-python run_probe.py --config scripts/configs/pems_bay_probe.yaml --all --force-granger
-python scripts/finalize_paper_figures.py --aas-source outputs --no-manuscript-check  # Figs. 1-2 and AAS
-```
+### Edge convention
 
-The probe's own Lens 3 output scores an exactly uniform learned matrix by tie order. The paper
-instead scores it at the chance level, which `scripts/finalize_paper_figures.py` implements. Use
-that script's values for the AAS reported in the paper. Lens 4 (communities), Lens 5 (horizon
-degradation), the walk-forward evaluation and the W&B sweeps are extra tooling that the paper does
-not report. The paper's hyperparameters are the published settings in
-`scripts/configs/models/*_base.yaml`, not sweep results.
+Every structural comparison reads a dependency matrix `W` with **`W[i, j]` = weight of source
+`i` on target `j`**. Column `j` therefore holds target `j`'s incoming edges, which is also the
+orientation of the Granger `fstats[i, j]`. Exported matrices are saved in each model's native
+orientation. `src/analysis/orientation.py` puts them into the canonical one before any top-k
+selection:
+
+| Model | Native aggregation | Treatment |
+|---|---|---|
+| GWN v2 | `einsum('ncvl,vw->ncwl')`, columns are targets | as exported |
+| STAWnet | `x @ attention`, columns are targets | as exported |
+| DSSA-TCN | `attention @ value`, rows are targets | **transposed** |
+| D2STGNN | `graph @ X`, rows are targets | **transposed** |
+| GWN (tsl) | applies the matrix and its transpose | as exported |
+| STAEformer, BigST | similarity proxies, never used to propagate | as exported |
+
+`tests/test_orientation.py` checks the native aggregation axis of each propagating model, so a
+model whose export is read in the wrong direction fails the test suite. When adding a model,
+add it to `ROWS_ARE_TARGETS` if it aggregates along rows.
+
+### What the paper does and does not use
+
+| Used in the paper | Included but not used in the paper |
+|---|---|
+| `scripts/run_training.py`, `scripts/configs/<dataset>_training.yaml`, `scripts/configs/models/` | `scripts/run_sweep.py`, `scripts/configs/sweeps/` (W&B hyperparameter sweeps) |
+| `run_probe.py`, `scripts/configs/<dataset>_probe.yaml` | `scripts/run_walk_forward.py`, `scripts/prepare_walk_forward_data.py` (walk-forward validation) |
+| Lens 0 (performance), Lens 1 (SGS), Lens 2 (Granger), Lens 3 (AAS) | Lens 4 (communities), Lens 5 (horizon degradation), `src/analysis/explore.py` |
+| `scripts/finalize_paper_figures.py`, `scripts/regenerate_figures.py`, `scripts/pdf_to_eps.py` | `scripts/png_to_eps.py` |
+| `scripts/reextract_adjacency.py` (re-exports matrices from checkpoints) | `scripts/run_dummy_e2e.py`, `scripts/configs/*smoke*.yaml` (synthetic smoke tests) |
+| `src/data/tsl_pipeline.py` | `src/data/raw_sources.py`, `scripts/prepare_standard_splits.py` (manually downloaded DCRNN files) |
+
+`run_probe.py --all` also runs Lenses 4 and 5. Their outputs are written to `outputs/` but are
+not reported in the paper. The modules that are not used carry a "Not used in the paper" note in
+their docstrings.
 
 ## Structure
 

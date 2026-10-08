@@ -1,5 +1,8 @@
 """Adapters from repo-local raw traffic files to STGNN-Probe inputs.
 
+Not used in the paper, whose inputs come from tsl's dataset cache
+(src/data/tsl_pipeline.py); kept for manually downloaded DCRNN files.
+
 This module is intentionally outside ``analysis``.  STGNN-Probe consumes
 standardized ``.npy`` and ``.csv`` files; only this data layer knows about the
 legacy METR-LA / PEMS-BAY raw file names and schemas.

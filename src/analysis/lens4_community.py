@@ -1,5 +1,7 @@
 """Lens 4 — Community Coherence Test.
 
+Not used in the paper: community structure was dropped from the reported analysis.
+
 Detects communities in the learned adjacency matrix (Louvain) and validates
 whether they align with real geographic road structure (Haversine GCS).
 

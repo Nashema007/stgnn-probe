@@ -4,7 +4,7 @@
 
 Lens 0 establishes the forecasting performance baseline before any spatial interpretation begins. Lenses 1–5 then interpret *why* models perform the way they do.
 
-> **Scope of the paper.** The paper reports Lenses 0–3 only: MAE (Lens 0), SGS (Lens 1), the fixed-lag Granger reference (Lens 2) and AAS (Lens 3), with the settings in `scripts/configs/<dataset>_probe.yaml`. Lenses 4 and 5 and the absolute-threshold alignment modes described below are additional diagnostics. The paper's AAS scores exactly uniform learned matrices at the chance level `k/(N-1)` (see `scripts/finalize_paper_figures.py`); Lens 3 as shipped scores them by tie order.
+> **Scope of the paper.** The paper reports Lenses 0–3 only: MAE (Lens 0), SGS (Lens 1), the fixed-lag Granger reference (Lens 2) and AAS (Lens 3), with the settings in `scripts/configs/<dataset>_probe.yaml`. Lenses 4 and 5 and the absolute-threshold alignment modes described below are additional diagnostics. The paper's AAS scores exactly uniform learned matrices at the chance level `k/(N-1)` (see `scripts/finalize_paper_figures.py`); Lens 3 as shipped scores them by tie order. Before Lens 3, every learned matrix is put in the canonical orientation `W[i, j]` = source `i` -> target `j` by `src/analysis/orientation.py`. DSSA-TCN and D2STGNN aggregate along rows, so their exports are transposed (see the top-level README's *Edge convention*).
 
 Each lens addresses one dimension of that question. Together they form a diagnostic pipeline that runs on any model that exposes per-node predictions and, for Lenses 1–5, a learned adjacency matrix.
 

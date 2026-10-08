@@ -1,5 +1,7 @@
 """Walk-forward validation for STGNN models.
 
+Not used in the paper, which uses one chronological 70/10/20 split.
+
 Trains a model independently on each expanding-window fold and reports per-fold
 and aggregated MAE / MAPE / RMSE. Uses the dataset's pre-defined time boundaries
 (see DEFAULT_WALK_FORWARD_BOUNDARIES in src/data/dataset.py).
