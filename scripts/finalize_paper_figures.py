@@ -472,6 +472,9 @@ def main(argv: list[str] | None = None) -> int:
         fig = _load_plotly(html)
         fig.data = tuple(tr for tr in fig.data if (tr.name or "").lower() not in FIG1_DROP)
         _enlarge_plotly_fonts(fig)
+        # Plotly's default font stack resolves to Verdana; Arial matches fig2 (Vega)
+        # so both figures share one typeface, as Springer's figure guidelines ask.
+        fig.update_layout(font_family="Arial")
         _refit_fig1_axes(fig, base)
         _apply_fig1_display_names(fig)
         if not legend_written:

@@ -4,7 +4,7 @@
 # torch_scatter/torch_sparse have no prebuilt wheel for macOS, so this image
 # (Linux-based, works identically on macOS host and native Linux) is the
 # supported way to run lint/typecheck/tests for this repo. See Dockerfile
-# and README.md's "PyTorch Backend Support" section.
+# and docs/development.md's "PyTorch Backend Support" section.
 #
 # Usage:
 #   ./test.sh                   # full verification: ruff check, ruff format --check, mypy, pytest
@@ -12,7 +12,7 @@
 #   ./test.sh ruff check src/
 #   FORCE_REBUILD=1 ./test.sh   # rebuild the image even if it already exists
 #
-# On native Linux you can skip Docker entirely — see README.md for the
+# On native Linux you can skip Docker entirely — see docs/development.md for the
 # `uv sync` + `uv pip install torch-scatter torch-sparse ...` alternative.
 
 set -euo pipefail

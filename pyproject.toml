@@ -29,7 +29,7 @@ dependencies = [
     # torch-spatiotemporal's GraphWaveNetModel/TCNModel (used by data.tsl_pipeline)
     # transitively require torch_scatter/torch_sparse. Those are binary extensions
     # served from PyG's own wheel index, not PyPI, so `uv sync` alone cannot resolve
-    # them — install them separately per the README's Environment Setup section
+    # them — install them separately per docs/development.md's Environment Setup section
     # (same command CI and the Docker dev image use).
     "torch-spatiotemporal>=0.9.5,<0.10",
     "pytorch-lightning>=2.4,<2.7",

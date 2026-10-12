@@ -303,7 +303,9 @@ def _enlarge_vega_fonts(spec_json: str) -> str:
                         channel["axis"]["titleFontSize"] = 38
             mark = node.get("mark")
             if isinstance(mark, dict) and mark.get("type") == "text":
-                mark["fontSize"] = 28
+                # Matches the axis labels; at 28 the bar values printed at 5.7 pt in the
+                # paper, below Springer's 6 pt minimum for figure lettering.
+                mark["fontSize"] = 32
             for value in node.values():
                 walk(value)
         elif isinstance(node, list):
