@@ -8,8 +8,10 @@ architecture:
                        # p=3 captures ~15-min autocorrelation at 5-min resolution
                        # d=0 traffic speed is stationary after z-scoring
                        # q=1 single MA lag is standard for short-term traffic
-  rolling_step: 10    # stride between consecutive rolling-forecast origins (timesteps)
-                       # smaller = more forecast windows, slower; 10 is a practical default
+  rolling_step: 10    # Not used in the paper: only the standalone run_arima() reads it.
+                       # run_training.py calls predict_arima(), which fits once on all data before
+                       # the first test origin and forecasts from EVERY test window's origin
+                       # (stride 1, no re-estimation), so ARIMA is paired 1:1 with the neural models.
 
 datasets:
   METR-LA:

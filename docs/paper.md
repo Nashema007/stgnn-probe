@@ -15,9 +15,10 @@ The shipped configs are the paper's configuration.
 | Runs | 3 seeds per model and horizon | `num_runs: 3` |
 | Split | chronological 70/10/20, with the Z-score fitted on the training split | `val_len: 0.125`, `test_len: 0.2` |
 | Models | GWN, GWN v2, STAWnet, DSSA-TCN, STAEformer, D2STGNN, BigST; per-sensor TCN and ARIMA baselines | `spatial_models`; `scripts/configs/models/*_base.yaml` |
+| ARIMA | ARIMA(3,0,1) per sensor on Z-scored speed, fitted once on all data before the first test origin, then forecasting from every test window's origin without re-estimation. Not used for SGS. `rolling_step` in its config is not used | `predict_arima` in `src/training/arima_trainer.py` |
 | Hyperparameters | the published settings of each model | `scripts/configs/models/*_base.yaml` |
 | SGS | relative gain over the per-sensor TCN; sensor classes use a 1% threshold | `sgs_rel_threshold: 0.01` |
-| Granger reference | pairwise F-test at a **fixed lag p = 12** for every pair, fitted on the full series; top `k = 10` incoming sources per sensor | `granger.max_lag: 12`, `granger.gcg_top_k: 10` |
+| Granger reference | pairwise F-test at a **fixed lag p = 12** for every pair, fitted on the full series; top `k = 10` incoming sources per sensor, self-links excluded | `granger.max_lag: 12`, `granger.gcg_top_k: 10` |
 | AAS | overlap of each model's top-10 incoming edges with the reference, averaged over 3 horizons x 3 seeds. Exactly uniform matrices are scored at the chance level `k/(N-1)` | `scripts/finalize_paper_figures.py` |
 
 ## Edge convention
@@ -35,7 +36,7 @@ selection:
 | DSSA-TCN | `attention @ value`, rows are targets | **transposed** |
 | D2STGNN | `graph @ X`, rows are targets | **transposed** |
 | GWN (tsl) | applies the matrix and its transpose | as exported |
-| STAEformer, BigST | similarity proxies, never used to propagate | as exported |
+| STAEformer, BigST | similarity proxies, never used to propagate: row-wise `softmax(ReLU(E @ E.T))` of BigST's node embeddings and of STAEformer's input embeddings averaged over the test set | as exported |
 
 `tests/test_orientation.py` checks the native aggregation axis of each propagating model, so a
 model whose export is read in the wrong direction fails the test suite. When adding a model,
